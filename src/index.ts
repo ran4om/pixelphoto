@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { loadConfig, saveConfig, MODELS } from './config.js';
 import { runQuickMode } from './core.js';
+import { runOnboard } from './onboard.js';
 
 const program = new Command();
 
@@ -10,6 +11,13 @@ program
   .name('pixelphoto')
   .description('AI Bulk Photo Renamer using OpenRouter Vision Models')
   .version('1.0.0');
+
+program
+  .command('onboard')
+  .description('Guided setup to auto-discover free Vision AI models and configure the app')
+  .action(async () => {
+    await runOnboard();
+  });
 
 program
   .command('config')
