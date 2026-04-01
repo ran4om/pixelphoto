@@ -98,20 +98,49 @@ export async function runOnboard() {
       }
     }
 
-    console.log(chalk.blue('\nSelect an OpenAI Vision Model:'));
-    console.log(`  ${chalk.bold('1.')} gpt-5-nano-2025-08-07 ${chalk.gray('(Target Default)')}`);
-    console.log(`  ${chalk.bold('2.')} gpt-4o`);
-    console.log(`  ${chalk.bold('3.')} gpt-4o-mini`);
-    
-    const oModelChoice = await question(chalk.yellow('\nEnter 1, 2, or 3 (default is 1): '));
-    if (oModelChoice.trim() === '2') {
-      config.defaultModel = 'gpt-4o';
-    } else if (oModelChoice.trim() === '3') {
-      config.defaultModel = 'gpt-4o-mini';
-    } else {
-      config.defaultModel = 'gpt-5-nano-2025-08-07';
+    // Fetch Live Models from OpenAI
+    console.log(chalk.gray('\nFetching available models directly from OpenAI...'));
+    let liveModels: string[] = [];
+    try {
+      const res = await fetch('https://api.openai.com/v1/models', {
+        headers: { 'Authorization': `Bearer ${config.openaiApiKey}` }
+      });
+      if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+      const data: any = await res.json();
+      
+      liveModels = data.data
+        .map((m: any) => m.id)
+        .filter((id: string) => {
+          // Heuristic: remove non-vision text models, embeddings, audio, tts
+          if (id.includes('audio') || id.includes('tts') || id.includes('realtime') || id.includes('embed') || id.includes('moderation') || id.includes('whisper') || id.includes('dall-e') || id.includes('instruct') || id.includes('babbage') || id.includes('davinci')) {
+            return false;
+          }
+          return id.startsWith('gpt-4o') || id.startsWith('gpt-5') || id.startsWith('o1') || id.startsWith('o3') || id.startsWith('o4');
+        })
+        .sort().reverse();
+        
+      console.log(chalk.green(`✔ Found ${liveModels.length} compatible vision models! 👀`));
+    } catch (err: any) {
+      console.log(chalk.red(`✖ Could not fetch models: ${err.message}`));
+      console.log(chalk.gray('Returning to fallback defaults...'));
+      liveModels = [
+        'gpt-5-nano-2025-08-07',
+        'gpt-4o',
+        'gpt-4o-mini'
+      ];
     }
-    console.log(chalk.green(`✅ Default model updated to: ${config.defaultModel}`));
+
+    console.log(chalk.blue('\nAvailable OpenAI Vision Models:'));
+    liveModels.forEach((m, idx) => {
+      console.log(`  ${chalk.bold(idx + 1)}. ${m} ${m === config.defaultModel ? chalk.gray('(Current Default)') : ''}`);
+    });
+
+    const oModelChoice = await question(chalk.yellow('\nChoose an index to set as your default model (or press enter to skip): '));
+    const chosenIndex = parseInt(oModelChoice.trim(), 10) - 1;
+    if (!isNaN(chosenIndex) && chosenIndex >= 0 && chosenIndex < liveModels.length) {
+      config.defaultModel = liveModels[chosenIndex];
+      console.log(chalk.green(`✅ Default model updated to: ${config.defaultModel}`));
+    }
   }
 
   // Save config
