@@ -44,7 +44,16 @@ export async function askVisionModel(base64Image: string, mimeType: string, mode
         content: [
           {
             type: "text",
-            text: "You are an automated file unnamer. Given an image, your ONLY task is to return a descriptive filename. Use ONLY lowercase characters, numbers, and dashes. NO extensions, NO markdown, NO spaces, NO other text. Example: white-cat-on-grass. Maximum 6 words.\n\nProvide a filename for this image."
+            text: `You are an automated Photo Renamer. Given an image, your ONLY task is to return a descriptive filename.
+Rules:
+1. ONLY return the descriptive slug (e.g., white-cat-on-mat).
+2. NO conversational text, NO "The image shows...", NO "Filename:".
+3. NO markdown, NO extensions, NO spaces.
+4. Use lowercase, numbers, and dashes.
+5. Maximum 6 words.
+6. If the image is unclear, describe what IS visible rather than saying "unknown".
+
+Provide a short, descriptive filename for this image.`
           },
           {
             type: "image_url",
@@ -59,23 +68,55 @@ export async function askVisionModel(base64Image: string, mimeType: string, mode
 
   // https://developers.openai.com/api/docs: max_tokens is deprecated on o1/gpt-5 in favor of max_completion_tokens
   if (config.provider === 'openai') {
-    requestBody.max_completion_tokens = 50;
+    requestBody.max_completion_tokens = 60;
   } else {
-    requestBody.max_tokens = 50;
+    requestBody.max_tokens = 60;
   }
 
-  const response = await client.chat.completions.create(requestBody);
+  // Retry logic for Rate Limits (429)
+  let response;
+  let retries = 0;
+  const maxRetries = 3;
+
+  while (retries <= maxRetries) {
+    try {
+      response = await client.chat.completions.create(requestBody);
+      break; 
+    } catch (error: any) {
+      if (error.status === 429 && retries < maxRetries) {
+        const delay = Math.pow(2, retries) * 2000; // 2s, 4s, 8s
+        retries++;
+        console.log(`\n⚠️ Rate limited. Retrying in ${delay/1000}s... (Attempt ${retries}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (!response) {
+     throw new Error("Failed to get response after retries.");
+  }
 
   const raw = response.choices[0]?.message?.content?.trim() || '';
   if (!raw) return 'unknown-image';
 
-  const sanitized = raw
-    .toLowerCase()                         // lowercase everything first
-    .replace(/\s+|_+/g, '-')              // spaces and underscores → dashes
-    .replace(/[^a-z0-9-]/g, '')           // strip anything remaining that isn't alphanumeric or dash
-    .replace(/-+/g, '-')                  // collapse multiple dashes
-    .replace(/^-|-$/g, '')                // trim leading/trailing dashes
-    .slice(0, 80);                        // cap length
+  // Heuristic: Some models return "Filename: white-cat.jpg" or "Slug: white-cat"
+  // Let's strip common prefixes and conversational openers
+  let cleaned = raw
+    .replace(/^(filename|slug|name|result|output|here is a filename)[^a-z0-9]*/i, '')
+    .replace(/^["']|["']$/g, ''); // strip quotes
 
-  return sanitized || 'unknown-image';
+  const sanitized = cleaned
+    .toLowerCase()                           // lowercase FIRST so uppercase letters aren't nuked by regex
+    .replace(/\s+|_+/g, '-')                 // spaces and underscores -> dashes
+    .replace(/[^a-z0-9-]/g, '')              // strip non-alphanumeric (now safe because we lowercased)
+    .replace(/-+/g, '-')                     // collapse multiple dashes
+    .replace(/^-|-$/g, '')                   // trim leading/trailing dashes
+    .slice(0, 80);                           // cap length
+
+  // Prevent recursive "unknown" or "image" naming loops
+  const isTooGeneric = sanitized === 'unknown' || sanitized === 'image' || sanitized === 'unknown-image';
+
+  return (sanitized && !isTooGeneric) ? sanitized : 'descriptive-photo';
 }
