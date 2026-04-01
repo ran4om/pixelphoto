@@ -59,6 +59,15 @@ export async function askVisionModel(base64Image, mimeType, model) {
         requestBody.max_tokens = 50;
     }
     const response = await client.chat.completions.create(requestBody);
-    const content = response.choices[0]?.message?.content?.trim() || 'unknown-image';
-    return content.replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'unknown-image';
+    const raw = response.choices[0]?.message?.content?.trim() || '';
+    if (!raw)
+        return 'unknown-image';
+    const sanitized = raw
+        .toLowerCase() // lowercase everything first
+        .replace(/\s+|_+/g, '-') // spaces and underscores → dashes
+        .replace(/[^a-z0-9-]/g, '') // strip anything remaining that isn't alphanumeric or dash
+        .replace(/-+/g, '-') // collapse multiple dashes
+        .replace(/^-|-$/g, '') // trim leading/trailing dashes
+        .slice(0, 80); // cap length
+    return sanitized || 'unknown-image';
 }
