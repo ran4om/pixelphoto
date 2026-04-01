@@ -1,6 +1,5 @@
 import readline from 'readline';
 import chalk from 'chalk';
-import ora from 'ora';
 import { loadConfig, saveConfig, AppConfig } from './config.js';
 
 const rl = readline.createInterface({
@@ -34,7 +33,7 @@ export async function runOnboard() {
   }
 
   // 2. Fetch Live Models
-  const spinner = ora('Fetching available free Vision models directly from OpenRouter...').start();
+  console.log(chalk.gray('Fetching available free Vision models directly from OpenRouter...'));
   let liveModels: string[] = [];
   try {
     const res = await fetch('https://openrouter.ai/api/v1/models');
@@ -46,9 +45,9 @@ export async function runOnboard() {
       .filter((m: any) => m.id.endsWith(':free') && m.architecture?.modality?.includes('image->text'))
       .map((m: any) => m.id);
       
-    spinner.succeed(chalk.green(`Found ${liveModels.length} compatible free vision models! 👀`));
+    console.log(chalk.green(`✔ Found ${liveModels.length} compatible free vision models! 👀`));
   } catch (err: any) {
-    spinner.fail(chalk.red(`Could not fetch models: ${err.message}`));
+    console.log(chalk.red(`✖ Could not fetch models: ${err.message}`));
     console.log(chalk.gray('Returning to fallback defaults...'));
     liveModels = [
       'qwen/qwen-vl-plus:free',

@@ -10,6 +10,7 @@ import { askVisionModel } from './openrouter.js';
 import { loadConfig } from './config.js';
 
 const VALID_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function runQuickMode(directory: string, modelFlag?: string, noResizeFlag?: boolean) {
   const config = loadConfig();
@@ -75,7 +76,12 @@ export async function runQuickMode(directory: string, modelFlag?: string, noResi
 
       spinner.succeed(`Processed ${file} -> ${chalk.green(newFilename)}`);
     } catch (error: any) {
-      spinner.fail(`Failed ${file}: ${error.message}`);
+      spinner.fail(`Failed ${file}: ${error.message || error}`);
+    }
+
+    // Delay to respect free tier rate limits (20 RPM usually means 3 seconds is safe)
+    if (i < imageFiles.length - 1) {
+      await sleep(3000);
     }
   }
 

@@ -37,6 +37,10 @@ export async function askVisionModel(base64Image: string, mimeType: string, mode
         role: "user",
         content: [
           {
+            type: "text",
+            text: "Provide a filename for this image."
+          },
+          {
             type: "image_url",
             image_url: {
               url: `data:${mimeType};base64,${base64Image}`
