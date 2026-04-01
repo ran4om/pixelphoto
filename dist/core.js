@@ -5,7 +5,7 @@ import mime from 'mime-types';
 import ora from 'ora';
 import chalk from 'chalk';
 import readline from 'readline';
-import { askVisionModel } from './openrouter.js';
+import { askVisionModel } from './ai.js';
 import { loadConfig } from './config.js';
 const VALID_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));

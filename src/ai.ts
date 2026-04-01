@@ -3,28 +3,37 @@ import { loadConfig } from './config.js';
 
 let openaiClient: OpenAI | null = null;
 
-export function getOpenRouterClient(): OpenAI {
+export function getAIClient(): OpenAI {
   if (openaiClient) return openaiClient;
 
   const config = loadConfig();
-  if (!config.openrouterApiKey) {
-    throw new Error('OpenRouter API Key is missing. Please set it in your configuration or run pixelphoto config.');
-  }
 
-  openaiClient = new OpenAI({
-    baseURL: 'https://openrouter.ai/api/v1',
-    apiKey: config.openrouterApiKey,
-    defaultHeaders: {
-      'HTTP-Referer': 'https://github.com/ran4om/pixelphoto',
-      'X-Title': 'PixelPhoto AI Bulk Renamer',
-    },
-  });
+  if (config.provider === 'openai') {
+    if (!config.openaiApiKey) {
+      throw new Error('OpenAI API Key is missing. Please set it in your configuration or run pixelphoto onboard.');
+    }
+    openaiClient = new OpenAI({
+      apiKey: config.openaiApiKey,
+    });
+  } else {
+    if (!config.openrouterApiKey) {
+      throw new Error('OpenRouter API Key is missing. Please set it in your configuration or run pixelphoto onboard.');
+    }
+    openaiClient = new OpenAI({
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: config.openrouterApiKey,
+      defaultHeaders: {
+        'HTTP-Referer': 'https://github.com/ran4om/pixelphoto',
+        'X-Title': 'PixelPhoto AI Bulk Renamer',
+      },
+    });
+  }
 
   return openaiClient;
 }
 
 export async function askVisionModel(base64Image: string, mimeType: string, model: string): Promise<string> {
-  const client = getOpenRouterClient();
+  const client = getAIClient();
 
   const response = await client.chat.completions.create({
     model: model,
@@ -53,6 +62,5 @@ export async function askVisionModel(base64Image: string, mimeType: string, mode
   });
 
   const content = response.choices[0]?.message?.content?.trim() || 'unknown-image';
-  // Sanitize the output just in case the model hallucinates markdown or spaces
   return content.replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'unknown-image';
 }
