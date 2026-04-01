@@ -40,15 +40,11 @@ export async function askVisionModel(base64Image: string, mimeType: string, mode
     model: model,
     messages: [
       {
-        role: "system",
-        content: "You are an automated file unnamer. Given an image, your ONLY task is to return a descriptive filename. Use ONLY lowercase characters, numbers, and dashes. NO extensions, NO markdown, NO spaces, NO other text. Example: white-cat-on-grass. Maximum 6 words."
-      },
-      {
         role: "user",
         content: [
           {
             type: "text",
-            text: "Provide a filename for this image."
+            text: "You are an automated file unnamer. Given an image, your ONLY task is to return a descriptive filename. Use ONLY lowercase characters, numbers, and dashes. NO extensions, NO markdown, NO spaces, NO other text. Example: white-cat-on-grass. Maximum 6 words.\n\nProvide a filename for this image."
           },
           {
             type: "image_url",
