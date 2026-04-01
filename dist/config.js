@@ -22,7 +22,12 @@ export function loadConfig() {
     try {
         const data = fs.readFileSync(CONFIG_FILE, 'utf-8');
         const parsed = JSON.parse(data);
-        return { ...DEFAULT_CONFIG, ...parsed };
+        const loaded = { ...DEFAULT_CONFIG, ...parsed };
+        // Patch dead gemini model from old cached config json files
+        if (loaded.defaultModel === 'google/gemini-2.0-flash-lite-preview-02-05:free') {
+            loaded.defaultModel = 'qwen/qwen-vl-plus:free';
+        }
+        return loaded;
     }
     catch (error) {
         console.error('Failed to parse config file:', error);
