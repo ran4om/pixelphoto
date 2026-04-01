@@ -13,7 +13,7 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
 const DEFAULT_CONFIG: AppConfig = {
   openrouterApiKey: '',
-  defaultModel: 'google/gemini-2.0-flash-lite-preview-02-05:free',
+  defaultModel: 'qwen/qwen-vl-plus:free',
   resize: true,
 };
 

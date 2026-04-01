@@ -22,6 +22,7 @@
   "author": "kiarad",
   "license": "MIT",
   "dependencies": {
+    "@inquirer/prompts": "^8.3.2",
     "chalk": "^5.3.0",
     "commander": "^12.0.0",
     "dotenv": "^16.4.5",
