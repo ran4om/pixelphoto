@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { loadConfig, saveConfig, MODELS } from './config.js';
+import { loadConfig, saveConfig } from './config.js';
 import { runQuickMode } from './core.js';
 import { runOnboard } from './onboard.js';
 
@@ -64,9 +64,13 @@ program
   .option('--no-resize', 'Disable image resizing for this run')
   .action(async (directory, options) => {
     const config = loadConfig();
-    if (!config.openrouterApiKey) {
+    if (config.provider === 'openai' && !config.openaiApiKey) {
+      console.error(chalk.red('❌ Error: OpenAI API Key is missing!'));
+      console.error(chalk.yellow('Run `pixelphoto onboard` first.'));
+      process.exit(1);
+    } else if (config.provider === 'openrouter' && !config.openrouterApiKey) {
       console.error(chalk.red('❌ Error: OpenRouter API Key is missing!'));
-      console.error(chalk.yellow('Run `pixelphoto config -k <your_key>` first.'));
+      console.error(chalk.yellow('Run `pixelphoto onboard` first.'));
       process.exit(1);
     }
 

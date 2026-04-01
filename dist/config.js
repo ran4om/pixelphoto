@@ -4,17 +4,12 @@ import os from 'os';
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'pixelphoto');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const DEFAULT_CONFIG = {
+    provider: 'openai',
+    openaiApiKey: '',
     openrouterApiKey: '',
-    defaultModel: 'qwen/qwen-vl-plus:free',
+    defaultModel: 'gpt-5-nano-2025-08-07',
     resize: true,
 };
-export const MODELS = [
-    'google/gemini-2.0-flash-lite-preview-02-05:free',
-    'meta-llama/llama-3.2-11b-vision-instruct:free',
-    'qwen/qwen-vl-plus:free',
-    'nvidia/nemotron-nano-12b-v2-vl:free',
-    'google/gemma-3-27b-it:free'
-];
 export function loadConfig() {
     if (!fs.existsSync(CONFIG_FILE)) {
         return DEFAULT_CONFIG;
@@ -23,9 +18,20 @@ export function loadConfig() {
         const data = fs.readFileSync(CONFIG_FILE, 'utf-8');
         const parsed = JSON.parse(data);
         const loaded = { ...DEFAULT_CONFIG, ...parsed };
-        // Patch dead gemini model from old cached config json files
+        // Patch old default from very early builds
         if (loaded.defaultModel === 'google/gemini-2.0-flash-lite-preview-02-05:free') {
-            loaded.defaultModel = 'qwen/qwen-vl-plus:free';
+            loaded.defaultModel = 'gpt-5-nano-2025-08-07';
+            loaded.provider = 'openai';
+        }
+        // Ensure backwards compat where provider didnt exist
+        if (!loaded.provider) {
+            if (loaded.openrouterApiKey) {
+                loaded.provider = 'openrouter';
+            }
+            else {
+                loaded.provider = 'openai';
+                loaded.defaultModel = 'gpt-5-nano-2025-08-07';
+            }
         }
         return loaded;
     }

@@ -4,9 +4,8 @@ import sharp from 'sharp';
 import mime from 'mime-types';
 import ora from 'ora';
 import chalk from 'chalk';
-import * as url from 'url';
 import readline from 'readline';
-import { askVisionModel } from './openrouter.js';
+import { askVisionModel } from './ai.js';
 import { loadConfig } from './config.js';
 
 const VALID_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
