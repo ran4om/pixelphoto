@@ -11,7 +11,7 @@ import { loadConfig } from './config.js';
 const VALID_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export async function runQuickMode(directory: string, modelFlag?: string, noResizeFlag?: boolean) {
+export async function runQuickMode(directory: string, modelFlag?: string, noResizeFlag?: boolean, yesFlag?: boolean) {
   const config = loadConfig();
   const modelToUse = modelFlag || config.defaultModel;
   const shouldResize = noResizeFlag ? false : config.resize;
@@ -93,6 +93,14 @@ export async function runQuickMode(directory: string, modelFlag?: string, noResi
   renames.forEach(r => {
     console.log(`${chalk.gray(r.oldName)} -> ${chalk.green(r.newName)}`);
   });
+
+  if (yesFlag) {
+    for (const r of renames) {
+      fs.renameSync(r.oldPath, r.newPath);
+    }
+    console.log(chalk.green(`Successfully renamed ${renames.length} files!`));
+    return;
+  }
 
   const rl = readline.createInterface({
     input: process.stdin,
