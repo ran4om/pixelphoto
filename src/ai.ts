@@ -34,8 +34,9 @@ export function getAIClient(): OpenAI {
 
 export async function askVisionModel(base64Image: string, mimeType: string, model: string): Promise<string> {
   const client = getAIClient();
+  const config = loadConfig();
 
-  const response = await client.chat.completions.create({
+  const requestBody: any = {
     model: model,
     messages: [
       {
@@ -57,9 +58,17 @@ export async function askVisionModel(base64Image: string, mimeType: string, mode
           }
         ]
       }
-    ],
-    max_tokens: 50,
-  });
+    ]
+  };
+
+  // https://developers.openai.com/api/docs: max_tokens is deprecated on o1/gpt-5 in favor of max_completion_tokens
+  if (config.provider === 'openai') {
+    requestBody.max_completion_tokens = 50;
+  } else {
+    requestBody.max_tokens = 50;
+  }
+
+  const response = await client.chat.completions.create(requestBody);
 
   const content = response.choices[0]?.message?.content?.trim() || 'unknown-image';
   return content.replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'unknown-image';
