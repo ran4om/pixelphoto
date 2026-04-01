@@ -67,10 +67,12 @@ Provide a short, descriptive filename for this image.`
   };
 
   // https://developers.openai.com/api/docs: max_tokens is deprecated on o1/gpt-5 in favor of max_completion_tokens
+  // Note: Reasoning models (o1, gpt-5) often use 500-1000+ internal tokens.
+  // We set a high limit (2000) to ensure they finish thinking before outputting.
   if (config.provider === 'openai') {
-    requestBody.max_completion_tokens = 60;
+    requestBody.max_completion_tokens = 2000;
   } else {
-    requestBody.max_tokens = 60;
+    requestBody.max_tokens = 2000;
   }
 
   // Retry logic for Rate Limits (429)

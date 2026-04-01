@@ -17,7 +17,7 @@ const DEFAULT_CONFIG: AppConfig = {
   provider: 'openai',
   openaiApiKey: '',
   openrouterApiKey: '',
-  defaultModel: 'gpt-4o-mini',
+  defaultModel: 'gpt-5-nano-2025-08-07',
   resize: true,
 };
 
@@ -30,8 +30,8 @@ export function loadConfig(): AppConfig {
     const parsed = JSON.parse(data);
     const loaded = { ...DEFAULT_CONFIG, ...parsed };
     // Patch old default from very early builds
-    if (loaded.defaultModel === 'google/gemini-2.0-flash-lite-preview-02-05:free') {
-      loaded.defaultModel = 'gpt-4o-mini';
+    if (loaded.defaultModel === 'google/gemini-2.0-flash-lite-preview-02-05:free' || loaded.defaultModel === 'gpt-4o-mini') {
+      loaded.defaultModel = 'gpt-5-nano-2025-08-07';
       loaded.provider = 'openai';
     }
     
@@ -41,7 +41,7 @@ export function loadConfig(): AppConfig {
         loaded.provider = 'openrouter';
       } else {
         loaded.provider = 'openai';
-        loaded.defaultModel = 'gpt-4o-mini';
+        loaded.defaultModel = 'gpt-5-nano-2025-08-07';
       }
     }
 
