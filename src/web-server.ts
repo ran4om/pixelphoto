@@ -54,15 +54,12 @@ function stripMaskForSave(incoming: Partial<AppConfig>, current: AppConfig): App
     ...incoming,
     promptPresets: incoming.promptPresets ?? current.promptPresets,
   };
-  if (incoming.openaiApiKey !== undefined) {
-    if (!masked(incoming.openaiApiKey)) {
-      next.openaiApiKey = incoming.openaiApiKey;
-    }
+  // If incoming API keys are masked, restore the current values
+  if (incoming.openaiApiKey !== undefined && masked(incoming.openaiApiKey)) {
+    next.openaiApiKey = current.openaiApiKey;
   }
-  if (incoming.openrouterApiKey !== undefined) {
-    if (!masked(incoming.openrouterApiKey)) {
-      next.openrouterApiKey = incoming.openrouterApiKey;
-    }
+  if (incoming.openrouterApiKey !== undefined && masked(incoming.openrouterApiKey)) {
+    next.openrouterApiKey = current.openrouterApiKey;
   }
   return next;
 }
