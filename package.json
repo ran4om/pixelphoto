@@ -11,7 +11,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
-    "dev:tui": "bun run src/tui/dev.ts"
+    "dev:tui": "bun run src/tui/dev.ts",
+    "tui:smoke": "bun scripts/tui-smoke.ts"
   },
   "keywords": [
     "ai",
