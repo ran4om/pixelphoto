@@ -122,10 +122,70 @@ export async function planRenamesInDirectory(
   return { plan, failed };
 }
 
-export function applyRenamePlan(entries: RenamePlanEntry[]): void {
-  for (const r of entries) {
-    fs.renameSync(r.oldPath, r.newPath);
+export type ApplyRenamePlanResult = {
+  success: boolean;
+  completed: RenamePlanEntry[];
+  failedAt?: RenamePlanEntry;
+  error?: string;
+};
+
+/**
+ * Validates the plan, applies renames in order, and rolls back on first failure.
+ */
+export function applyRenamePlan(entries: RenamePlanEntry[]): ApplyRenamePlanResult {
+  const completed: RenamePlanEntry[] = [];
+
+  const preflight = (): { ok: true } | { ok: false; at: RenamePlanEntry; error: string } => {
+    const seenOld = new Set<string>();
+    const seenNew = new Set<string>();
+    for (const r of entries) {
+      const o = path.resolve(r.oldPath);
+      const n = path.resolve(r.newPath);
+      if (seenOld.has(o)) {
+        return { ok: false, at: r, error: `Duplicate source in plan: ${r.oldName}` };
+      }
+      if (seenNew.has(n)) {
+        return { ok: false, at: r, error: `Duplicate destination in plan: ${r.newName}` };
+      }
+      seenOld.add(o);
+      seenNew.add(n);
+      if (!fs.existsSync(o)) {
+        return { ok: false, at: r, error: `Source does not exist: ${r.oldPath}` };
+      }
+      if (!fs.statSync(o).isFile()) {
+        return { ok: false, at: r, error: `Source is not a file: ${r.oldPath}` };
+      }
+      if (fs.existsSync(n)) {
+        return { ok: false, at: r, error: `Destination already exists: ${r.newPath}` };
+      }
+    }
+    return { ok: true };
+  };
+
+  const check = preflight();
+  if (!check.ok) {
+    return { success: false, completed: [], failedAt: check.at, error: check.error };
   }
+
+  for (const r of entries) {
+    try {
+      fs.renameSync(r.oldPath, r.newPath);
+      completed.push(r);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      for (let i = completed.length - 1; i >= 0; i--) {
+        const c = completed[i];
+        try {
+          fs.renameSync(c.newPath, c.oldPath);
+        } catch {
+          /* best-effort rollback */
+        }
+      }
+      return { success: false, completed: [], failedAt: r, error: message };
+    }
+  }
+
+  return { success: true, completed: entries };
 }
 
 export async function runQuickMode(
@@ -150,7 +210,7 @@ export async function runQuickMode(
   }
 
   console.log(chalk.blue(`Found ${imageFiles.length} image(s). Processing...`));
-  let spinner = ora(`Processing…`).start();
+  const spinner = ora(`Processing…`).start();
 
   let planResult: Awaited<ReturnType<typeof planRenamesInDirectory>>;
   try {
@@ -166,7 +226,7 @@ export async function runQuickMode(
           spinner.fail(`Failed ${ev.file}: ${ev.error ?? 'unknown error'}`);
         }
         if (ev.index < ev.total) {
-          spinner = ora(`Processing…`).start();
+          spinner.start('Processing…');
         }
       },
     });
@@ -194,7 +254,11 @@ export async function runQuickMode(
   });
 
   if (yesFlag) {
-    applyRenamePlan(renames);
+    const applied = applyRenamePlan(renames);
+    if (!applied.success) {
+      console.error(chalk.red(`Rename failed: ${applied.error ?? 'unknown error'}`));
+      return;
+    }
     console.log(chalk.green(`Successfully renamed ${renames.length} files!`));
     return;
   }
@@ -207,7 +271,11 @@ export async function runQuickMode(
   rl.question(chalk.yellow(`\nApply these ${renames.length} renames? (Y/n) `), answer => {
     rl.close();
     if (answer.trim().toLowerCase() === 'y' || answer.trim() === '') {
-      applyRenamePlan(renames);
+      const applied = applyRenamePlan(renames);
+      if (!applied.success) {
+        console.error(chalk.red(`Rename failed: ${applied.error ?? 'unknown error'}`));
+        return;
+      }
       console.log(chalk.green('Successfully renamed files!'));
     } else {
       console.log(chalk.red('Operation cancelled. No files were renamed.'));

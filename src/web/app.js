@@ -1,6 +1,8 @@
 const $ = id => document.getElementById(id);
 
 let lastPlan = [];
+/** @type {string | null} */
+let lastPlanId = null;
 let deferredInstall = null;
 /** @type {any} */
 let currentConfig = null;
@@ -221,7 +223,17 @@ function wirePreview() {
   $('run-preview').addEventListener('click', async () => {
     if (!previewDataUrl) return;
     $('preview-result').textContent = 'Running…';
+    if (typeof previewDataUrl !== 'string' || !previewDataUrl.includes(',')) {
+      $('preview-result').textContent = 'Invalid image data';
+      showToast('Could not read the image. Please choose a file again.', true);
+      return;
+    }
     const base64 = previewDataUrl.split(',')[1];
+    if (!base64) {
+      $('preview-result').textContent = 'Invalid image data';
+      showToast('Could not read the image. Please choose a file again.', true);
+      return;
+    }
     const body = {
       base64,
       mimeType: previewMime,
@@ -245,6 +257,7 @@ function wireBatch() {
     $('plan-table').hidden = true;
     $('plan-body').innerHTML = '';
     lastPlan = [];
+    lastPlanId = null;
     $('apply-batch').disabled = true;
     const directory = $('folder-path').value.trim();
     if (!directory) {
@@ -262,6 +275,7 @@ function wireBatch() {
       if (pm) body.model = pm;
       const r = await api('/api/plan', { method: 'POST', body: JSON.stringify(body) });
       lastPlan = r.plan || [];
+      lastPlanId = typeof r.planId === 'string' ? r.planId : null;
       $('apply-batch').disabled = lastPlan.length === 0;
       if (r.failed?.length) {
         $('batch-status').textContent = `${r.failed.length} file(s) failed. ${r.failed.map(f => f.file).join(', ')}`;
@@ -284,14 +298,19 @@ function wireBatch() {
 
   $('apply-batch').addEventListener('click', async () => {
     if (!lastPlan.length) return;
+    if (!lastPlanId) {
+      showToast('Plan expired or missing. Click “Generate rename plan” again.', true);
+      return;
+    }
     if (!confirm(`Apply ${lastPlan.length} rename(s)? This cannot be undone automatically.`)) return;
     try {
       await api('/api/apply', {
         method: 'POST',
-        body: JSON.stringify({ entries: lastPlan.map(p => ({ oldPath: p.oldPath, newPath: p.newPath })) }),
+        body: JSON.stringify({ planId: lastPlanId }),
       });
       showToast('Renames applied');
       lastPlan = [];
+      lastPlanId = null;
       $('apply-batch').disabled = true;
       $('plan-table').hidden = true;
       $('plan-body').innerHTML = '';

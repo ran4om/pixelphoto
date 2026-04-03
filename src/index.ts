@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { exec } from 'node:child_process';
 import { loadConfig, saveConfig } from './config.js';
 import { runQuickMode } from './core.js';
 import { runOnboard } from './onboard.js';
 import { startWebServer } from './web-server.js';
+import { openInBrowser } from './open-browser.js';
 
 const program = new Command();
 
@@ -37,17 +37,7 @@ program
     console.log(chalk.green(`  ${url}`));
     console.log(chalk.gray('  Only connections from this machine are accepted. Press Ctrl+C to stop.\n'));
     if (options.open !== false) {
-      const cmd =
-        process.platform === 'darwin'
-          ? `open "${url}"`
-          : process.platform === 'win32'
-            ? `start "" "${url}"`
-            : `xdg-open "${url}"`;
-      exec(cmd, err => {
-        if (err) {
-          console.log(chalk.yellow('Could not open a browser automatically; open the URL manually.'));
-        }
-      });
+      openInBrowser(url);
     }
   });
 
@@ -115,13 +105,7 @@ program
       const { url } = await startWebServer(port);
       console.log(chalk.cyan(`\nLocal studio: ${chalk.bold(url)}`));
       console.log(chalk.gray('Configure prompts, models, and batch renames in the browser. Press Ctrl+C to stop the server.\n'));
-      const cmd =
-        process.platform === 'darwin'
-          ? `open "${url}"`
-          : process.platform === 'win32'
-            ? `start "" "${url}"`
-            : `xdg-open "${url}"`;
-      exec(cmd, () => {});
+      openInBrowser(url, true);
       await new Promise(() => {});
       return;
     }
