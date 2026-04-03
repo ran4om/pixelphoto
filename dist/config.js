@@ -49,10 +49,11 @@ export function loadConfig() {
         else {
             loaded.promptPresets = loaded.promptPresets.map((p) => {
                 const o = p;
+                const rawPrompt = typeof o.prompt === 'string' ? o.prompt : '';
                 return {
                     id: typeof o.id === 'string' && o.id ? o.id : randomUUID(),
                     name: typeof o.name === 'string' && o.name ? o.name : 'Preset',
-                    prompt: typeof o.prompt === 'string' ? o.prompt : DEFAULT_RENAME_PROMPT,
+                    prompt: rawPrompt.trim() !== '' ? rawPrompt : DEFAULT_RENAME_PROMPT,
                 };
             });
         }

@@ -9,6 +9,16 @@ import { listModelsForConfig } from './models.js';
 import { randomUUID } from 'node:crypto';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = path.join(__dirname, 'web');
+/** Server-side rename plans (avoids accepting arbitrary paths in /api/apply). */
+const PENDING_PLAN_TTL_MS = 60 * 60 * 1000;
+const pendingRenamePlans = new Map();
+function prunePendingPlans() {
+    const now = Date.now();
+    for (const [id, v] of pendingRenamePlans) {
+        if (v.expiresAt <= now)
+            pendingRenamePlans.delete(id);
+    }
+}
 const MIME = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
@@ -168,39 +178,42 @@ export function createWebServer() {
                     noResize: Boolean(body.noResize),
                     promptOverride: prompt,
                 });
+                prunePendingPlans();
+                const planId = randomUUID();
+                pendingRenamePlans.set(planId, { entries: plan, expiresAt: Date.now() + PENDING_PLAN_TTL_MS });
                 const entries = plan.map(p => ({
                     oldPath: p.oldPath,
                     newPath: p.newPath,
                     oldName: p.oldName,
                     newName: p.newName,
                 }));
-                sendJson(res, 200, { plan: entries, failed });
+                sendJson(res, 200, { planId, plan: entries, failed });
                 return;
             }
             if (req.method === 'POST' && url.pathname === '/api/apply') {
-                const body = (await readJsonBody(req, 2 * 1024 * 1024));
-                const raw = body.entries;
-                if (!Array.isArray(raw) || raw.length === 0) {
-                    sendJson(res, 400, { error: 'Missing entries' });
+                const body = (await readJsonBody(req, 64 * 1024));
+                const planId = typeof body.planId === 'string' ? body.planId.trim() : '';
+                if (!planId) {
+                    sendJson(res, 400, { error: 'Missing planId. Generate a plan from the Studio first, then apply it.' });
                     return;
                 }
-                const entries = [];
-                for (const e of raw) {
-                    if (!e || typeof e.oldPath !== 'string' || typeof e.newPath !== 'string') {
-                        sendJson(res, 400, { error: 'Invalid entry' });
-                        return;
-                    }
-                    const oldName = path.basename(e.oldPath);
-                    const newName = path.basename(e.newPath);
-                    entries.push({
-                        oldPath: path.resolve(e.oldPath),
-                        newPath: path.resolve(e.newPath),
-                        oldName,
-                        newName,
-                    });
+                prunePendingPlans();
+                const pending = pendingRenamePlans.get(planId);
+                if (!pending || pending.expiresAt <= Date.now()) {
+                    sendJson(res, 400, { error: 'Unknown or expired plan. Run “Generate rename plan” again.' });
+                    return;
                 }
-                applyRenamePlan(entries);
-                sendJson(res, 200, { ok: true, renamed: entries.length });
+                const result = applyRenamePlan(pending.entries);
+                pendingRenamePlans.delete(planId);
+                if (!result.success) {
+                    sendJson(res, 400, {
+                        error: result.error ?? 'Rename failed',
+                        failedAt: result.failedAt,
+                        completed: result.completed.length,
+                    });
+                    return;
+                }
+                sendJson(res, 200, { ok: true, renamed: result.completed.length });
                 return;
             }
             if (req.method === 'POST' && url.pathname === '/api/presets') {

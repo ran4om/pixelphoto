@@ -2,6 +2,9 @@ import type { AppConfig } from './config.js';
 
 export type ModelsListResult = { models: string[]; source: 'live' | 'fallback'; error?: string };
 
+/** Vision-capable OpenAI chat model id prefixes (last updated: 2026-04-03). */
+const OPENAI_VISION_PREFIXES = ['gpt-4o', 'gpt-5', 'o1', 'o3', 'o4'] as const;
+
 export async function fetchOpenRouterVisionModels(): Promise<ModelsListResult> {
   try {
     const res = await fetch('https://openrouter.ai/api/v1/models');
@@ -69,7 +72,7 @@ export async function fetchOpenAiVisionModels(apiKey: string): Promise<ModelsLis
         ) {
           return false;
         }
-        return id.startsWith('gpt-4o') || id.startsWith('gpt-5') || id.startsWith('o1') || id.startsWith('o3') || id.startsWith('o4');
+        return OPENAI_VISION_PREFIXES.some(prefix => id.startsWith(prefix));
       })
       .sort()
       .reverse();

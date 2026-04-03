@@ -8,8 +8,8 @@ const dest = path.join(__dirname, '..', 'dist', 'web');
 
 function copyDir(s, d) {
   if (!fs.existsSync(s)) {
-    console.warn('copy-web: source missing', s);
-    return;
+    console.error('copy-web: missing source directory:', s);
+    process.exit(1);
   }
   fs.mkdirSync(d, { recursive: true });
   for (const e of fs.readdirSync(s, { withFileTypes: true })) {
