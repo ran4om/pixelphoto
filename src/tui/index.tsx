@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createCliRenderer } from '@opentui/core';
 import { createRoot } from '@opentui/react';
 import React from 'react';
@@ -51,6 +52,14 @@ function swallowLeakedSgrMouseReports(sequence: string): boolean {
  */
 function swallowTwoParamCsiEndingInABCR(sequence: string): boolean {
   return /^\x1b\[[0-9]+;[0-9]+[ABCR]$/.test(sequence);
+}
+
+/**
+ * CPR / cursor position report with extra params (e.g. `ESC [ 1 ; 1 ; 0 R` in some terminals).
+ * OpenTUI's `parseKeypress` only treats the 2-number `…;…R` form as a non-key response.
+ */
+function swallowMultiParamCsiEndingInR(sequence: string): boolean {
+  return /^\x1b\[[0-9][0-9;]*R$/.test(sequence);
 }
 
 /** Window resize / cell pixels: `ESC [ … t` (e.g. `4;960;1617t`). */
@@ -109,6 +118,7 @@ function swallowPrependedNoise(sequence: string): boolean {
     swallowStrayKittyKeyReports(sequence) ||
     swallowLeakedSgrMouseReports(sequence) ||
     swallowTwoParamCsiEndingInABCR(sequence) ||
+    swallowMultiParamCsiEndingInR(sequence) ||
     swallowCsiEndingInT(sequence) ||
     swallowDeviceAttributesResponse(sequence) ||
     swallowCsiEndingInN(sequence) ||
@@ -119,15 +129,32 @@ function swallowPrependedNoise(sequence: string): boolean {
   );
 }
 
-const DEBUG_NDJSON_LOG =
-  '/home/kiarad/allcoding/pixelphoto/.cursor/debug-0b44b1.log';
+/** Repo root: `src/tui` or `dist/tui` → project root (two levels up). */
+const TUI_MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+const PACKAGE_ROOT = join(TUI_MODULE_DIR, '..', '..');
+
+function safeDebugSessionId(raw: string | undefined): string {
+  const s = (raw ?? '').trim() || 'pixelphoto-tui';
+  const cleaned = s.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 64);
+  return cleaned || 'pixelphoto-tui';
+}
+
+const DEBUG_SESSION_ID = safeDebugSessionId(
+  process.env.PIXELPHOTO_TUI_DEBUG_SESSION
+);
+const DEBUG_CURSOR_DIR = join(PACKAGE_ROOT, '.cursor');
+const DEBUG_NDJSON_LOG = join(
+  DEBUG_CURSOR_DIR,
+  `debug-${DEBUG_SESSION_ID}.log`
+);
 
 function debugNdjsonLine(payload: Record<string, unknown>): void {
   try {
+    mkdirSync(DEBUG_CURSOR_DIR, { recursive: true });
     appendFileSync(
       DEBUG_NDJSON_LOG,
       JSON.stringify({
-        sessionId: '0b44b1',
+        sessionId: DEBUG_SESSION_ID,
         timestamp: Date.now(),
         ...payload,
       }) + '\n'
@@ -149,6 +176,17 @@ export async function runPixelphotoTui(options?: RunTuiOptions): Promise<void> {
     options?.initialDirectory?.trim() ||
     process.env.PIXELPHOTO_TUI_INITIAL_DIR?.trim() ||
     undefined;
+
+  debugNdjsonLine({
+    location: 'src/tui/index.tsx:runPixelphotoTui',
+    message: 'tui-session-start',
+    data: {
+      logPath: DEBUG_NDJSON_LOG,
+      pid: process.pid,
+      term: process.env.TERM,
+    },
+    runId: 'session',
+  });
 
   // Console overlay can capture stdin and show a `>` prompt; stray bytes (e.g. mouse CSI)
   // may appear as typed garbage. Disable it for a clean full-screen app UI.
@@ -184,21 +222,23 @@ export async function runPixelphotoTui(options?: RunTuiOptions): Promise<void> {
             runId: 'verify-stdin',
           };
           debugNdjsonLine(line);
-          fetch(
-            'http://127.0.0.1:7449/ingest/f8a083c3-714e-4ba6-888c-76a8c450bb33',
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Debug-Session-Id': '0b44b1',
-              },
-              body: JSON.stringify({
-                sessionId: '0b44b1',
-                ...line,
-                timestamp: Date.now(),
-              }),
-            }
-          ).catch(() => {});
+          if (process.env.PIXELPHOTO_TUI_DEBUG_INGEST === '1') {
+            fetch(
+              'http://127.0.0.1:7449/ingest/f8a083c3-714e-4ba6-888c-76a8c450bb33',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Debug-Session-Id': DEBUG_SESSION_ID,
+                },
+                body: JSON.stringify({
+                  sessionId: DEBUG_SESSION_ID,
+                  ...line,
+                  timestamp: Date.now(),
+                }),
+              }
+            ).catch(() => {});
+          }
         }
         // #endregion
         return swallowed;
