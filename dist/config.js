@@ -19,7 +19,7 @@ export function loadConfig() {
         const parsed = JSON.parse(data);
         const loaded = { ...DEFAULT_CONFIG, ...parsed };
         // Patch old default from very early builds
-        if (loaded.defaultModel === 'google/gemini-2.0-flash-lite-preview-02-05:free') {
+        if (loaded.defaultModel === 'google/gemini-2.0-flash-lite-preview-02-05:free' || loaded.defaultModel === 'gpt-4o-mini') {
             loaded.defaultModel = 'gpt-5-nano-2025-08-07';
             loaded.provider = 'openai';
         }

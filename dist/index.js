@@ -56,6 +56,7 @@ program
     .option('--web', 'Open local Web Server interface (Coming Soon)')
     .option('--model <model>', 'Override default model for this run')
     .option('--no-resize', 'Disable image resizing for this run')
+    .option('-y, --yes', 'Skip confirmation prompt and rename files immediately')
     .action(async (directory, options) => {
     const config = loadConfig();
     if (config.provider === 'openai' && !config.openaiApiKey) {
@@ -74,7 +75,7 @@ program
     if (options.web) {
         console.log(chalk.yellow('🚧 Web UI mode is coming soon. Falling back to --quick mode.'));
     }
-    await runQuickMode(directory, options.model, options.resize === false);
+    await runQuickMode(directory, options.model, options.resize === false, options.yes);
 });
 program.parse(process.argv);
 if (!process.argv.slice(2).length) {
