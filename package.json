@@ -7,7 +7,26 @@
     "pixelphoto": "./dist/index.js"
   },
   "type": "module",
+  "files": [
+    "dist",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ran4om/pixelphoto.git"
+  },
+  "homepage": "https://github.com/ran4om/pixelphoto#readme",
+  "bugs": {
+    "url": "https://github.com/ran4om/pixelphoto/issues"
+  },
   "scripts": {
+    "prepublishOnly": "npm run build",
+    "install:global": "npm run build && npm install -g .",
     "build": "tsc && node scripts/copy-web.mjs",
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
