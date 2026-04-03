@@ -27,7 +27,7 @@ const program = new Command();
 program
   .name('pixelphoto')
   .description('AI Bulk Photo Renamer using OpenRouter Vision Models')
-  .version('1.0.1');
+  .version('1.0.2');
 
 program
   .command('onboard')

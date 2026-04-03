@@ -2,6 +2,32 @@
 
 AI-assisted batch renaming for photos using vision models (OpenAI or OpenRouter). Ships as a **CLI**, a **local PWA** (`pixelphoto web`), and a **terminal UI** (`pixelphoto tui`, OpenTUI).
 
+## Quick start (one-liner)
+
+Install from [npm](https://www.npmjs.com/package/pixelphoto) and run guided setup in one go:
+
+```bash
+npm install -g pixelphoto && pixelphoto onboard
+```
+
+No global install (uses `npx`; may download the package on first run):
+
+```bash
+npx -y pixelphoto onboard
+```
+
+From GitHub (same as install + onboard):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ran4om/pixelphoto/master/scripts/install-and-onboard.sh | bash
+```
+
+Windows (PowerShell 7+):
+
+```powershell
+npm install -g pixelphoto && pixelphoto onboard
+```
+
 ## Requirements
 
 - **Node.js** 20 or newer
