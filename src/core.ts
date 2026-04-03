@@ -141,10 +141,124 @@ export async function collectRenamesForDirectory(
   return renames;
 }
 
+export type RenamePlanEntry = RenameEntry;
+
+export type PlanRenamesOptions = {
+  model?: string;
+  noResize?: boolean;
+  /** Overrides active preset when set (e.g. PWA custom prompt). */
+  promptTemplate?: string;
+  delayMs?: number;
+  onFileProgress?: (ev: {
+    file: string;
+    index: number;
+    total: number;
+    status: 'ok' | 'fail';
+    newName?: string;
+    error?: string;
+  }) => void;
+};
+
+/**
+ * Scans a directory, calls the vision model for each image, and returns a rename plan (no files moved).
+ */
+export async function planRenamesInDirectory(
+  directory: string,
+  options: PlanRenamesOptions = {}
+): Promise<{ plan: RenamePlanEntry[]; failed: { file: string; error: string }[] }> {
+  const config = loadConfig();
+  const modelToUse = options.model ?? config.defaultModel;
+  const shouldResize = options.noResize ? false : config.resize;
+  const delayMs = options.delayMs ?? 3000;
+  const promptTemplate =
+    options.promptTemplate?.trim() || getActivePresetPromptTemplate(config);
+
+  const targetDir = path.resolve(directory);
+  if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
+    throw new Error(`Directory not found or invalid: ${targetDir}`);
+  }
+
+  const files = fs.readdirSync(targetDir);
+  const imageFiles = files.filter((f) =>
+    VALID_IMAGE_EXTENSIONS.includes(path.extname(f).toLowerCase())
+  );
+
+  const plan: RenamePlanEntry[] = [];
+  const failed: { file: string; error: string }[] = [];
+
+  for (let i = 0; i < imageFiles.length; i++) {
+    const file = imageFiles[i];
+    const fullPath = path.join(targetDir, file);
+    const mimeType = mime.lookup(fullPath) || 'image/jpeg';
+
+    try {
+      let imageBuffer: Buffer;
+
+      if (shouldResize) {
+        imageBuffer = await sharp(fullPath)
+          .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+          .toBuffer();
+      } else {
+        imageBuffer = fs.readFileSync(fullPath);
+      }
+
+      const base64Image = imageBuffer.toString('base64');
+      const suggestedName = await askVisionModel(base64Image, mimeType, modelToUse, {
+        promptTemplate,
+      });
+
+      const ext = path.extname(file);
+      let newFilename = `${suggestedName}${ext}`;
+      let newFullPath = path.join(targetDir, newFilename);
+      let counter = 1;
+
+      while (fs.existsSync(newFullPath) || plan.some((r) => r.newName === newFilename)) {
+        newFilename = `${suggestedName}-${counter}${ext}`;
+        newFullPath = path.join(targetDir, newFilename);
+        counter++;
+      }
+
+      plan.push({
+        oldPath: fullPath,
+        newPath: newFullPath,
+        oldName: file,
+        newName: newFilename,
+      });
+      options.onFileProgress?.({
+        file,
+        index: i + 1,
+        total: imageFiles.length,
+        status: 'ok',
+        newName: newFilename,
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      failed.push({ file, error: message });
+      options.onFileProgress?.({
+        file,
+        index: i + 1,
+        total: imageFiles.length,
+        status: 'fail',
+        error: message,
+      });
+    }
+
+    if (i < imageFiles.length - 1 && delayMs > 0) {
+      await sleep(delayMs);
+    }
+  }
+
+  return { plan, failed };
+}
+
 export function applyRenames(entries: RenameEntry[]): void {
   for (const r of entries) {
     fs.renameSync(r.oldPath, r.newPath);
   }
+}
+
+export function applyRenamePlan(entries: RenamePlanEntry[]): void {
+  applyRenames(entries);
 }
 
 export async function runQuickMode(

@@ -8,11 +8,12 @@
   },
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-web.mjs",
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
     "dev:tui": "bun run src/tui/dev.ts",
-    "tui:smoke": "bun scripts/tui-smoke.ts"
+    "tui:smoke": "bun scripts/tui-smoke.ts",
+    "icons": "node scripts/generate-pwa-icons.mjs"
   },
   "keywords": [
     "ai",
