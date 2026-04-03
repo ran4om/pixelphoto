@@ -120,6 +120,10 @@ program
   .option('--web', 'Open local PWA in the browser (same as pixelphoto web)')
   .option('--model <model>', 'Override default model for this run')
   .option('--no-resize', 'Disable image resizing for this run')
+  .option(
+    '-c, --concurrency <n>',
+    'Parallel vision requests / batch size (default: 30)'
+  )
   .option('-y, --yes', 'Skip confirmation prompt and rename files immediately')
   .action(async (directory, options) => {
     if (options.tui) {
@@ -147,7 +151,16 @@ program
     }
 
     exitIfMissingApiKeys();
-    await runQuickMode(directory, options.model, options.resize === false, options.yes);
+    let concurrency: number | undefined;
+    if (options.concurrency !== undefined && options.concurrency !== '') {
+      const n = parseInt(String(options.concurrency), 10);
+      if (!Number.isFinite(n) || n < 1) {
+        console.error(chalk.red('Error: --concurrency must be a positive integer.'));
+        process.exit(1);
+      }
+      concurrency = n;
+    }
+    await runQuickMode(directory, options.model, options.resize === false, options.yes, concurrency);
   });
 
 program.parse(process.argv);

@@ -11,6 +11,9 @@ function formatProgress(p: RenameProgress): string {
   switch (p.type) {
     case 'scan':
       return `Found ${p.total} image(s).`;
+    case 'vision_ok':
+    case 'vision_fail':
+      return '';
     case 'file_start':
       return `[${p.index + 1}/${p.total}] ${p.fileName}…`;
     case 'file_done':

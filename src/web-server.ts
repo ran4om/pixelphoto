@@ -226,6 +226,7 @@ export function createWebServer(): http.Server {
           model?: string;
           noResize?: boolean;
           prompt?: string;
+          concurrency?: number;
         };
         if (!body.directory || typeof body.directory !== 'string') {
           sendJson(res, 400, { error: 'Missing directory' });
@@ -235,10 +236,20 @@ export function createWebServer(): http.Server {
         const model = typeof body.model === 'string' && body.model ? body.model : config.defaultModel;
         const prompt =
           typeof body.prompt === 'string' && body.prompt.trim() ? body.prompt.trim() : undefined;
+        let concurrency: number | undefined;
+        if (body.concurrency !== undefined) {
+          const n = Number(body.concurrency);
+          if (!Number.isFinite(n) || n < 1) {
+            sendJson(res, 400, { error: 'concurrency must be a positive number' });
+            return;
+          }
+          concurrency = Math.floor(n);
+        }
         const { plan, failed } = await planRenamesInDirectory(body.directory, {
           model,
           noResize: Boolean(body.noResize),
           promptTemplate: prompt,
+          ...(concurrency !== undefined ? { concurrency } : {}),
         });
         const entries = plan.map(p => ({
           oldPath: p.oldPath,
