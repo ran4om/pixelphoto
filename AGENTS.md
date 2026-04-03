@@ -17,7 +17,12 @@
 ### Testing
 
 - No automated test framework is configured. The file `test_rename.js` runs a basic integration test via `npx tsx src/index.ts rename ./testphotos --quick`.
-- End-to-end testing requires a valid API key (OpenAI or OpenRouter). Config is stored at `~/.config/pixelphoto/config.json`. Set it with `node dist/index.js config -k <key>` or write the JSON file directly.
+- End-to-end testing requires a valid API key (OpenAI or OpenRouter). Config is stored at `~/.config/pixelphoto/config.json`. Write the JSON directly, e.g.:
+  ```json
+  { "provider": "openai", "openaiApiKey": "<key>", "defaultModel": "gpt-4o", "resize": true }
+  ```
+- To run a full hello-world test: copy `testphotos/` to a temp dir, then `node dist/index.js rename ./testphotos_demo --quick --yes`. The `--yes` flag skips the interactive confirmation prompt.
+- The `OPENAI_API_KEY` secret is available as an environment variable in Cloud Agent VMs. Use it to populate the config file before running end-to-end tests.
 
 ### Gotchas
 
