@@ -1,11 +1,19 @@
+/** Fetch vision-capable model IDs for the config UI (OpenRouter + OpenAI). */
+
 import type { AppConfig } from './config.js';
 
-export type ModelsListResult = { models: string[]; source: 'live' | 'fallback'; error?: string };
+export type ModelsListResult = {
+  models: string[];
+  source: 'live' | 'fallback';
+  error?: string;
+};
 
-/** Vision-capable OpenAI chat model id prefixes (last updated: 2026-04-03). */
-const OPENAI_VISION_PREFIXES = ['gpt-4o', 'gpt-5', 'o1', 'o3', 'o4'] as const;
+function modalityHasVision(mod: unknown): boolean {
+  const s = Array.isArray(mod) ? mod.join(' ') : String(mod ?? '');
+  return s.includes('image->text');
+}
 
-export async function fetchOpenRouterVisionModels(): Promise<ModelsListResult> {
+async function fetchOpenRouterVisionModelsList(): Promise<ModelsListResult> {
   try {
     const res = await fetch('https://openrouter.ai/api/v1/models');
     if (!res.ok) {
@@ -15,27 +23,33 @@ export async function fetchOpenRouterVisionModels(): Promise<ModelsListResult> {
         error: `HTTP ${res.status}`,
       };
     }
-    const data = (await res.json()) as { data?: Array<{ id: string; architecture?: { modality?: string } }> };
+    const data = (await res.json()) as {
+      data?: Array<{ id: string; architecture?: { modality?: unknown } }>;
+    };
     const list = (data.data ?? [])
       .filter(
-        m =>
+        (m) =>
           typeof m.id === 'string' &&
           m.id.endsWith(':free') &&
-          (m.architecture?.modality?.includes('image->text') ?? false)
+          modalityHasVision(m.architecture?.modality)
       )
-      .map(m => m.id);
+      .map((m) => m.id);
     return { models: list, source: 'live' };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return {
-      models: ['qwen/qwen-vl-plus:free', 'meta-llama/llama-3.2-11b-vision-instruct:free', 'google/gemma-3-27b-it:free'],
+      models: [
+        'qwen/qwen-vl-plus:free',
+        'meta-llama/llama-3.2-11b-vision-instruct:free',
+        'google/gemma-3-27b-it:free',
+      ],
       source: 'fallback',
       error: message,
     };
   }
 }
 
-export async function fetchOpenAiVisionModels(apiKey: string): Promise<ModelsListResult> {
+async function fetchOpenAiVisionModelsList(apiKey: string): Promise<ModelsListResult> {
   if (!apiKey.trim()) {
     return {
       models: ['gpt-5-nano-2025-08-07', 'gpt-4o', 'gpt-4o-mini'],
@@ -56,7 +70,7 @@ export async function fetchOpenAiVisionModels(apiKey: string): Promise<ModelsLis
     }
     const data = (await res.json()) as { data?: Array<{ id: string }> };
     const liveModels = (data.data ?? [])
-      .map(m => m.id)
+      .map((m) => m.id)
       .filter((id: string) => {
         if (
           id.includes('audio') ||
@@ -72,7 +86,13 @@ export async function fetchOpenAiVisionModels(apiKey: string): Promise<ModelsLis
         ) {
           return false;
         }
-        return OPENAI_VISION_PREFIXES.some(prefix => id.startsWith(prefix));
+        return (
+          id.startsWith('gpt-4o') ||
+          id.startsWith('gpt-5') ||
+          id.startsWith('o1') ||
+          id.startsWith('o3') ||
+          id.startsWith('o4')
+        );
       })
       .sort()
       .reverse();
@@ -89,7 +109,15 @@ export async function fetchOpenAiVisionModels(apiKey: string): Promise<ModelsLis
 
 export async function listModelsForConfig(config: AppConfig): Promise<ModelsListResult> {
   if (config.provider === 'openrouter') {
-    return fetchOpenRouterVisionModels();
+    return fetchOpenRouterVisionModelsList();
   }
-  return fetchOpenAiVisionModels(config.openaiApiKey ?? '');
+  return fetchOpenAiVisionModelsList(config.openaiApiKey ?? '');
+}
+
+export async function fetchOpenRouterVisionModels(): Promise<string[]> {
+  return (await fetchOpenRouterVisionModelsList()).models;
+}
+
+export async function fetchOpenAiVisionModels(apiKey: string): Promise<string[]> {
+  return (await fetchOpenAiVisionModelsList(apiKey)).models;
 }

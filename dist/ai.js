@@ -28,10 +28,12 @@ export function getAIClient() {
     }
     return openaiClient;
 }
-export async function askVisionModel(base64Image, mimeType, model, promptOverride) {
+export async function askVisionModel(base64Image, mimeType, model, options) {
     const client = getAIClient();
     const config = loadConfig();
-    const instructionText = (promptOverride ?? config.renamePrompt).trim();
+    const styleExtra = options?.promptTemplate?.trim()
+        ? `\n\nAdditional naming style: ${options.promptTemplate.trim()}`
+        : '';
     const requestBody = {
         model: model,
         messages: [
@@ -40,7 +42,16 @@ export async function askVisionModel(base64Image, mimeType, model, promptOverrid
                 content: [
                     {
                         type: "text",
-                        text: instructionText
+                        text: `You are an automated Photo Renamer. Given an image, your ONLY task is to return a descriptive filename.
+Rules:
+1. ONLY return the descriptive slug (e.g., white-cat-on-mat).
+2. NO conversational text, NO "The image shows...", NO "Filename:".
+3. NO markdown, NO extensions, NO spaces.
+4. Use lowercase, numbers, and dashes.
+5. Maximum 6 words.
+6. If the image is unclear, describe what IS visible rather than saying "unknown".
+
+Provide a short, descriptive filename for this image.${styleExtra}`
                     },
                     {
                         type: "image_url",
@@ -74,7 +85,12 @@ export async function askVisionModel(base64Image, mimeType, model, promptOverrid
             if (error.status === 429 && retries < maxRetries) {
                 const delay = Math.pow(2, retries) * 2000; // 2s, 4s, 8s
                 retries++;
-                console.log(`\n⚠️ Rate limited. Retrying in ${delay / 1000}s... (Attempt ${retries}/${maxRetries})`);
+                if (options?.onRateLimitRetry) {
+                    options.onRateLimitRetry({ attempt: retries, maxRetries, delayMs: delay });
+                }
+                else {
+                    console.log(`\n⚠️ Rate limited. Retrying in ${delay / 1000}s... (Attempt ${retries}/${maxRetries})`);
+                }
                 await new Promise(resolve => setTimeout(resolve, delay));
                 continue;
             }

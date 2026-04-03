@@ -236,33 +236,6 @@ textarea {
   box-shadow: none;
 }
 
-.btn:focus {
-  outline: none;
-}
-
-.btn:focus-visible {
-  outline: none;
-  box-shadow:
-    0 0 0 2px var(--bg),
-    0 0 0 4px rgba(129, 140, 248, 0.95);
-}
-
-.btn.secondary:focus-visible {
-  box-shadow:
-    0 0 0 2px var(--bg),
-    0 0 0 4px rgba(196, 181, 253, 0.95);
-}
-
-.btn.danger:focus-visible {
-  box-shadow:
-    0 0 0 2px var(--bg),
-    0 0 0 4px rgba(248, 113, 113, 0.95);
-}
-
-.btn:disabled:focus-visible {
-  box-shadow: none;
-}
-
 .hint {
   font-size: 0.8rem;
   color: var(--muted);

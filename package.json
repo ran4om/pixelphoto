@@ -7,10 +7,31 @@
     "pixelphoto": "./dist/index.js"
   },
   "type": "module",
+  "files": [
+    "dist",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ran4om/pixelphoto.git"
+  },
+  "homepage": "https://github.com/ran4om/pixelphoto#readme",
+  "bugs": {
+    "url": "https://github.com/ran4om/pixelphoto/issues"
+  },
   "scripts": {
-    "build": "node scripts/generate-pwa-icons.mjs && tsc && node scripts/copy-web.mjs",
+    "prepublishOnly": "npm run build",
+    "install:global": "npm run build && npm install -g .",
+    "build": "tsc && node scripts/copy-web.mjs",
     "start": "node dist/index.js",
-    "dev": "ts-node --esm src/index.ts",
+    "dev": "tsc && node dist/index.js",
+    "dev:tui": "bun run src/tui/dev.ts",
+    "tui:smoke": "bun scripts/tui-smoke.ts",
     "icons": "node scripts/generate-pwa-icons.mjs"
   },
   "keywords": [
@@ -24,18 +45,28 @@
   "license": "MIT",
   "dependencies": {
     "@inquirer/prompts": "^8.3.2",
+    "@opentui/core": "^0.1.90",
+    "@opentui/react": "^0.1.90",
     "chalk": "^5.3.0",
     "commander": "^12.0.0",
     "dotenv": "^16.4.5",
     "mime-types": "^2.1.35",
     "openai": "^4.28.0",
     "ora": "^8.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "sharp": "^0.33.2"
   },
   "devDependencies": {
     "@types/mime-types": "^2.1.4",
     "@types/node": "^20.11.24",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.2.3",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.3.3"
+  },
+  "optionalDependencies": {
+    "@opentui/core-linux-x64": "0.1.96"
   }
 }

@@ -1,11 +1,26 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { exec } from 'node:child_process';
 import { loadConfig, saveConfig } from './config.js';
 import { runQuickMode } from './core.js';
 import { runOnboard } from './onboard.js';
 import { startWebServer } from './web-server.js';
-import { openInBrowser } from './open-browser.js';
+import { launchPixelphotoTui } from './tui/launch.js';
+
+function exitIfMissingApiKeys(): void {
+  const config = loadConfig();
+  if (config.provider === 'openai' && !config.openaiApiKey) {
+    console.error(chalk.red('❌ Error: OpenAI API Key is missing!'));
+    console.error(chalk.yellow('Run `pixelphoto onboard` or `pixelphoto tui` to set up.'));
+    process.exit(1);
+  }
+  if (config.provider === 'openrouter' && !config.openrouterApiKey) {
+    console.error(chalk.red('❌ Error: OpenRouter API Key is missing!'));
+    console.error(chalk.yellow('Run `pixelphoto onboard` or `pixelphoto tui` to set up.'));
+    process.exit(1);
+  }
+}
 
 const program = new Command();
 
@@ -21,12 +36,13 @@ program
     await runOnboard();
   });
 
+
 program
   .command('web')
   .description('Start the local PixelPhoto PWA (settings, preview, batch rename)')
   .option('-p, --port <port>', 'Port to listen on', '3847')
   .option('--no-open', 'Do not open a browser tab')
-  .action(async (options) => {
+  .action(async (options: { port?: string; open?: boolean }) => {
     const port = parseInt(String(options.port), 10);
     if (Number.isNaN(port) || port < 1 || port > 65535) {
       console.error(chalk.red('Invalid port.'));
@@ -35,9 +51,21 @@ program
     const { url } = await startWebServer(port);
     console.log(chalk.cyan.bold('\nPixelPhoto local studio'));
     console.log(chalk.green(`  ${url}`));
-    console.log(chalk.gray('  Only connections from this machine are accepted. Press Ctrl+C to stop.\n'));
+    console.log(
+      chalk.gray('  Only connections from this machine are accepted. Press Ctrl+C to stop.\n')
+    );
     if (options.open !== false) {
-      openInBrowser(url);
+      const cmd =
+        process.platform === 'darwin'
+          ? `open "${url}"`
+          : process.platform === 'win32'
+            ? `start "" "${url}"`
+            : `xdg-open "${url}"`;
+      exec(cmd, (err) => {
+        if (err) {
+          console.log(chalk.yellow('Could not open a browser automatically; open the URL manually.'));
+        }
+      });
     }
   });
 
@@ -76,40 +104,49 @@ program
   });
 
 program
+  .command('tui')
+  .description('Open the full-screen terminal UI (OpenTUI). Prefer Bun for dev: bun run dev:tui')
+  .option('-d, --directory <path>', 'Pre-fill directory on the Run screen')
+  .action(async (opts: { directory?: string }) => {
+    await launchPixelphotoTui({ initialDirectory: opts.directory });
+  });
+
+program
   .command('rename')
   .description('Rename photos in a directory')
   .argument('<directory>', 'Directory containing photos')
-  .option('--quick', 'Run in quick CLI mode (default for now)')
-  .option('--tui', 'Run Interactive Terminal UI (Coming Soon)')
-  .option('--web', 'Open local Web Server interface (Coming Soon)')
+  .option('--quick', 'Run in quick CLI mode (default)')
+  .option('--tui', 'Open full-screen TUI instead of quick mode')
+  .option('--web', 'Open local PWA in the browser (same as pixelphoto web)')
   .option('--model <model>', 'Override default model for this run')
   .option('--no-resize', 'Disable image resizing for this run')
   .option('-y, --yes', 'Skip confirmation prompt and rename files immediately')
   .action(async (directory, options) => {
-    const config = loadConfig();
-    if (config.provider === 'openai' && !config.openaiApiKey) {
-      console.error(chalk.red('❌ Error: OpenAI API Key is missing!'));
-      console.error(chalk.yellow('Run `pixelphoto onboard` first.'));
-      process.exit(1);
-    } else if (config.provider === 'openrouter' && !config.openrouterApiKey) {
-      console.error(chalk.red('❌ Error: OpenRouter API Key is missing!'));
-      console.error(chalk.yellow('Run `pixelphoto onboard` first.'));
-      process.exit(1);
+    if (options.tui) {
+      await launchPixelphotoTui({ initialDirectory: directory });
+      return;
     }
 
-    if (options.tui) {
-      console.log(chalk.yellow('🚧 TUI mode is coming soon. Falling back to --quick mode.'));
-    }
     if (options.web) {
+      exitIfMissingApiKeys();
       const port = 3847;
       const { url } = await startWebServer(port);
       console.log(chalk.cyan(`\nLocal studio: ${chalk.bold(url)}`));
-      console.log(chalk.gray('Configure prompts, models, and batch renames in the browser. Press Ctrl+C to stop the server.\n'));
-      openInBrowser(url, true);
+      console.log(
+        chalk.gray('Configure prompts, models, and batch renames in the browser. Press Ctrl+C to stop the server.\n')
+      );
+      const cmd =
+        process.platform === 'darwin'
+          ? `open "${url}"`
+          : process.platform === 'win32'
+            ? `start "" "${url}"`
+            : `xdg-open "${url}"`;
+      exec(cmd, () => {});
       await new Promise(() => {});
       return;
     }
 
+    exitIfMissingApiKeys();
     await runQuickMode(directory, options.model, options.resize === false, options.yes);
   });
 

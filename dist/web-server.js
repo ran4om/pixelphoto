@@ -2,23 +2,13 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig, saveConfig } from './config.js';
+import { loadConfig, saveConfig, getActivePresetPromptTemplate, } from './config.js';
 import { askVisionModel } from './ai.js';
-import { planRenamesInDirectory, applyRenamePlan } from './core.js';
+import { planRenamesInDirectory, applyRenamePlan, } from './core.js';
 import { listModelsForConfig } from './models.js';
 import { randomUUID } from 'node:crypto';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = path.join(__dirname, 'web');
-/** Server-side rename plans (avoids accepting arbitrary paths in /api/apply). */
-const PENDING_PLAN_TTL_MS = 60 * 60 * 1000;
-const pendingRenamePlans = new Map();
-function prunePendingPlans() {
-    const now = Date.now();
-    for (const [id, v] of pendingRenamePlans) {
-        if (v.expiresAt <= now)
-            pendingRenamePlans.delete(id);
-    }
-}
 const MIME = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
@@ -40,6 +30,12 @@ function maskConfig(config) {
         openrouterApiKey: config.openrouterApiKey ? '••••••••' + (config.openrouterApiKey.slice(-4) || '') : '',
     };
 }
+function webConfigJson(config) {
+    return {
+        ...maskConfig(config),
+        renamePrompt: getActivePresetPromptTemplate(config),
+    };
+}
 function stripMaskForSave(incoming, current) {
     const masked = (v) => typeof v === 'string' && v.startsWith('••');
     const next = {
@@ -47,12 +43,27 @@ function stripMaskForSave(incoming, current) {
         ...incoming,
         promptPresets: incoming.promptPresets ?? current.promptPresets,
     };
-    // If incoming API keys are masked, restore the current values
-    if (incoming.openaiApiKey !== undefined && masked(incoming.openaiApiKey)) {
-        next.openaiApiKey = current.openaiApiKey;
+    if (incoming.openaiApiKey !== undefined) {
+        if (!masked(incoming.openaiApiKey)) {
+            next.openaiApiKey = incoming.openaiApiKey;
+        }
     }
-    if (incoming.openrouterApiKey !== undefined && masked(incoming.openrouterApiKey)) {
-        next.openrouterApiKey = current.openrouterApiKey;
+    if (incoming.openrouterApiKey !== undefined) {
+        if (!masked(incoming.openrouterApiKey)) {
+            next.openrouterApiKey = incoming.openrouterApiKey;
+        }
+    }
+    return next;
+}
+function applyWebPutBody(body, current) {
+    const { renamePrompt, ...rest } = body;
+    let next = stripMaskForSave(rest, current);
+    if (typeof renamePrompt === 'string') {
+        const id = next.activePreset || 'default';
+        next = {
+            ...next,
+            promptPresets: next.promptPresets.map((p) => p.id === id ? { ...p, promptTemplate: renamePrompt } : p),
+        };
     }
     return next;
 }
@@ -125,19 +136,19 @@ export function createWebServer() {
             if (req.method === 'GET' && url.pathname === '/api/config') {
                 const config = loadConfig();
                 res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', ...cors });
-                res.end(JSON.stringify(maskConfig(config)));
+                res.end(JSON.stringify(webConfigJson(config)));
                 return;
             }
             if (req.method === 'PUT' && url.pathname === '/api/config') {
                 const body = (await readJsonBody(req, 512 * 1024));
                 const current = loadConfig();
-                const merged = stripMaskForSave(body, current);
+                const merged = applyWebPutBody(body, current);
                 if (merged.provider !== 'openai' && merged.provider !== 'openrouter') {
                     sendJson(res, 400, { error: 'Invalid provider' });
                     return;
                 }
                 saveConfig(merged);
-                sendJson(res, 200, { config: maskConfig(loadConfig()) });
+                sendJson(res, 200, { config: webConfigJson(loadConfig()) });
                 return;
             }
             if (req.method === 'GET' && url.pathname === '/api/models') {
@@ -157,7 +168,9 @@ export function createWebServer() {
                 const config = loadConfig();
                 const model = typeof body.model === 'string' && body.model ? body.model : config.defaultModel;
                 const prompt = typeof body.prompt === 'string' && body.prompt.trim() ? body.prompt.trim() : undefined;
-                const slug = await askVisionModel(body.base64, mimeType, model, prompt);
+                const slug = await askVisionModel(body.base64, mimeType, model, {
+                    promptTemplate: prompt,
+                });
                 sendJson(res, 200, { slug, model });
                 return;
             }
@@ -173,44 +186,41 @@ export function createWebServer() {
                 const { plan, failed } = await planRenamesInDirectory(body.directory, {
                     model,
                     noResize: Boolean(body.noResize),
-                    promptOverride: prompt,
+                    promptTemplate: prompt,
                 });
-                prunePendingPlans();
-                const planId = randomUUID();
-                pendingRenamePlans.set(planId, { entries: plan, expiresAt: Date.now() + PENDING_PLAN_TTL_MS });
                 const entries = plan.map(p => ({
                     oldPath: p.oldPath,
                     newPath: p.newPath,
                     oldName: p.oldName,
                     newName: p.newName,
                 }));
-                sendJson(res, 200, { planId, plan: entries, failed });
+                sendJson(res, 200, { plan: entries, failed });
                 return;
             }
             if (req.method === 'POST' && url.pathname === '/api/apply') {
-                const body = (await readJsonBody(req, 64 * 1024));
-                const planId = typeof body.planId === 'string' ? body.planId.trim() : '';
-                if (!planId) {
-                    sendJson(res, 400, { error: 'Missing planId. Generate a plan from the Studio first, then apply it.' });
+                const body = (await readJsonBody(req, 2 * 1024 * 1024));
+                const raw = body.entries;
+                if (!Array.isArray(raw) || raw.length === 0) {
+                    sendJson(res, 400, { error: 'Missing entries' });
                     return;
                 }
-                prunePendingPlans();
-                const pending = pendingRenamePlans.get(planId);
-                if (!pending || pending.expiresAt <= Date.now()) {
-                    sendJson(res, 400, { error: 'Unknown or expired plan. Run “Generate rename plan” again.' });
-                    return;
-                }
-                const result = applyRenamePlan(pending.entries);
-                pendingRenamePlans.delete(planId);
-                if (!result.success) {
-                    sendJson(res, 400, {
-                        error: result.error ?? 'Rename failed',
-                        failedAt: result.failedAt,
-                        completed: result.completed.length,
+                const entries = [];
+                for (const e of raw) {
+                    if (!e || typeof e.oldPath !== 'string' || typeof e.newPath !== 'string') {
+                        sendJson(res, 400, { error: 'Invalid entry' });
+                        return;
+                    }
+                    const oldName = path.basename(e.oldPath);
+                    const newName = path.basename(e.newPath);
+                    entries.push({
+                        oldPath: path.resolve(e.oldPath),
+                        newPath: path.resolve(e.newPath),
+                        oldName,
+                        newName,
                     });
-                    return;
                 }
-                sendJson(res, 200, { ok: true, renamed: result.completed.length });
+                applyRenamePlan(entries);
+                sendJson(res, 200, { ok: true, renamed: entries.length });
                 return;
             }
             if (req.method === 'POST' && url.pathname === '/api/presets') {
@@ -222,10 +232,15 @@ export function createWebServer() {
                     return;
                 }
                 const config = loadConfig();
-                const preset = { id: randomUUID(), name, prompt: promptText };
+                const preset = {
+                    id: randomUUID(),
+                    name,
+                    description: '',
+                    promptTemplate: promptText,
+                };
                 config.promptPresets = [...config.promptPresets, preset];
                 saveConfig(config);
-                sendJson(res, 200, { preset, config: maskConfig(config) });
+                sendJson(res, 200, { preset, config: webConfigJson(config) });
                 return;
             }
             if (req.method === 'DELETE' && url.pathname.startsWith('/api/presets/')) {
@@ -242,7 +257,7 @@ export function createWebServer() {
                 }
                 config.promptPresets = next;
                 saveConfig(config);
-                sendJson(res, 200, { ok: true, config: maskConfig(config) });
+                sendJson(res, 200, { ok: true, config: webConfigJson(config) });
                 return;
             }
         }
