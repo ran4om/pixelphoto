@@ -6,6 +6,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = path.join(__dirname, '..', 'src', 'web');
 const dest = path.join(__dirname, '..', 'dist', 'web');
 
+/**
+ * Recursively copy the contents of a source directory into a destination directory.
+ *
+ * Creates destination directories as needed and copies files and subdirectories from the source.
+ * If the source directory does not exist, logs an error and terminates the process with exit code 1.
+ *
+ * @param {string} s - Path to the source directory.
+ * @param {string} d - Path to the destination directory.
+ */
 function copyDir(s, d) {
   if (!fs.existsSync(s)) {
     console.error('copy-web: missing source directory:', s);

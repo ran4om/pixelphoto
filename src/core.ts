@@ -37,7 +37,12 @@ export type PlanRenamesOptions = {
 };
 
 /**
- * Scans a directory, calls the vision model for each image, and returns a rename plan (no files moved).
+ * Generate a rename plan for image files in a directory by querying a vision model for each image.
+ *
+ * @param directory - Path to the directory to scan for images.
+ * @param options - Optional controls for model selection, resizing, prompt override, per-file delay, and progress callback.
+ * @returns An object containing `plan` — the list of planned rename entries, and `failed` — an array of `{ file, error }` for files that could not be processed.
+ * @throws If the provided `directory` does not exist or is not a directory.
  */
 export async function planRenamesInDirectory(
   directory: string,
@@ -130,7 +135,15 @@ export type ApplyRenamePlanResult = {
 };
 
 /**
- * Validates the plan, applies renames in order, and rolls back on first failure.
+ * Apply a sequence of planned file renames to the filesystem, performing a preflight validation and attempting a rollback if any rename fails.
+ *
+ * The preflight validation checks for duplicate sources or destinations within the plan, verifies each source exists and is a file, and ensures no destination already exists. If validation passes, renames are executed in order; on the first execution failure a best-effort rollback is attempted for already-applied renames.
+ *
+ * @returns An object describing the outcome:
+ * - `success`: `true` if all renames were applied, `false` otherwise.
+ * - `completed`: the list of entries that were renamed (equal to `entries` on success, empty on failure).
+ * - `failedAt`: the plan entry where validation or execution first failed, present when `success` is `false`.
+ * - `error`: human-readable error message when `success` is `false`.
  */
 export function applyRenamePlan(entries: RenamePlanEntry[]): ApplyRenamePlanResult {
   const completed: RenamePlanEntry[] = [];
@@ -188,6 +201,17 @@ export function applyRenamePlan(entries: RenamePlanEntry[]): ApplyRenamePlanResu
   return { success: true, completed: entries };
 }
 
+/**
+ * Interactive CLI workflow that plans and optionally applies image filename renames in a directory using a vision model.
+ *
+ * Displays progress and a summary to the user, then either applies the generated rename plan automatically or prompts for confirmation.
+ *
+ * @param directory - Path to the directory containing image files to process
+ * @param modelFlag - Optional model identifier to override the configured default model
+ * @param noResizeFlag - If true, disables image resizing before sending to the vision model
+ * @param yesFlag - If true, applies the generated rename plan without prompting for confirmation
+ * @param promptOverride - Optional prompt string forwarded to the vision model request
+ */
 export async function runQuickMode(
   directory: string,
   modelFlag?: string,

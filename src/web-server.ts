@@ -16,6 +16,11 @@ const WEB_ROOT = path.join(__dirname, 'web');
 const PENDING_PLAN_TTL_MS = 60 * 60 * 1000;
 const pendingRenamePlans = new Map<string, { entries: RenamePlanEntry[]; expiresAt: number }>();
 
+/**
+ * Removes expired entries from the in-memory `pendingRenamePlans` map.
+ *
+ * An entry is removed when its `expiresAt` timestamp is less than or equal to the current time.
+ */
 function prunePendingPlans(): void {
   const now = Date.now();
   for (const [id, v] of pendingRenamePlans) {
@@ -35,10 +40,22 @@ const MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
+/**
+ * Determines whether a remote IP address represents localhost.
+ *
+ * @param addr - The remote address string (e.g., from `req.socket.remoteAddress`)
+ * @returns `true` if `addr` is exactly `127.0.0.1`, `::1`, or `::ffff:127.0.0.1`, `false` otherwise.
+ */
 function isLocalhost(addr: string | undefined): boolean {
   return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
 }
 
+/**
+ * Produce a copy of an AppConfig where API keys are redacted for display.
+ *
+ * @param config - The original configuration object
+ * @returns A new AppConfig with `openaiApiKey` and `openrouterApiKey` replaced by `••••••••` plus their last four characters when present, or an empty string when absent
+ */
 function maskConfig(config: AppConfig): AppConfig {
   return {
     ...config,
@@ -47,6 +64,13 @@ function maskConfig(config: AppConfig): AppConfig {
   };
 }
 
+/**
+ * Merge an incoming partial AppConfig over the current config while preserving masked API keys and prompt presets when omitted.
+ *
+ * @param incoming - Partial config values to apply. If `openaiApiKey` or `openrouterApiKey` are present but start with `••` they are treated as masked and will not overwrite the existing keys. Omitting `promptPresets` preserves the current presets.
+ * @param current - The existing full AppConfig to merge into.
+ * @returns The resulting AppConfig after applying `incoming` over `current`, with masked keys and absent `promptPresets` preserved. 
+ */
 function stripMaskForSave(incoming: Partial<AppConfig>, current: AppConfig): AppConfig {
   const masked = (v: string | undefined) => typeof v === 'string' && v.startsWith('••');
   const next: AppConfig = {
@@ -67,6 +91,14 @@ function stripMaskForSave(incoming: Partial<AppConfig>, current: AppConfig): App
   return next;
 }
 
+/**
+ * Parse and return the JSON body of an HTTP request while enforcing a size limit.
+ *
+ * @param req - The incoming HTTP request to read
+ * @param maxBytes - Maximum allowed body size in bytes; exceeding this throws an Error
+ * @returns The parsed JSON value, or an empty object when the body is empty or contains only whitespace
+ * @throws Error when the accumulated request body exceeds `maxBytes`
+ */
 async function readJsonBody(req: http.IncomingMessage, maxBytes: number): Promise<unknown> {
   const chunks: Buffer[] = [];
   let total = 0;
@@ -83,11 +115,30 @@ async function readJsonBody(req: http.IncomingMessage, maxBytes: number): Promis
   return JSON.parse(raw) as unknown;
 }
 
+/**
+ * Send a JSON response with the given HTTP status.
+ *
+ * Sets `Content-Type` to `application/json; charset=utf-8` and writes the JSON-stringified `body`.
+ *
+ * @param res - The HTTP ServerResponse to write to
+ * @param status - The HTTP status code to send
+ * @param body - The value to serialize as the JSON response body
+ */
 function sendJson(res: http.ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(body));
 }
 
+/**
+ * Sends the given file as the HTTP response with an appropriate MIME type and cache-control header.
+ *
+ * If the file is successfully read, responds with status 200, sets `Content-Type` based on the file extension
+ * (falls back to `application/octet-stream`) and `Cache-Control: no-cache`, and writes the file bytes.
+ * If the file cannot be read, responds with status 404 and the plain text body `Not found`.
+ *
+ * @param res - The HTTP server response to write to
+ * @param filePath - Filesystem path to the file to serve
+ */
 function sendStatic(res: http.ServerResponse, filePath: string): void {
   const ext = path.extname(filePath);
   const type = MIME[ext] ?? 'application/octet-stream';
@@ -101,6 +152,13 @@ function sendStatic(res: http.ServerResponse, filePath: string): void {
   }
 }
 
+/**
+ * Resolve a URL path (optionally containing a query) against a filesystem root and ensure the result stays inside that root.
+ *
+ * @param root - The filesystem directory to resolve against.
+ * @param urlPath - The request URL path, which may include a query string.
+ * @returns The absolute resolved path if it is inside `root`, `null` otherwise.
+ */
 function safeResolveInside(root: string, urlPath: string): string | null {
   const decoded = decodeURIComponent(urlPath.split('?')[0] ?? '/');
   const clean = decoded.replace(/^\/+/, '');
@@ -111,6 +169,15 @@ function safeResolveInside(root: string, urlPath: string): string | null {
   return resolved;
 }
 
+/**
+ * Create an HTTP server that serves the single-page application and local-only REST endpoints
+ * for configuration, model interactions, previewing, rename planning/applying, and preset management.
+ *
+ * The returned server enforces localhost-only access and provides a static SPA fallback when no API
+ * route matches.
+ *
+ * @returns An `http.Server` instance with handlers for the module's API routes and static file serving.
+ */
 export function createWebServer(): http.Server {
   const server = http.createServer(async (req, res) => {
     const host = req.socket.remoteAddress;
@@ -316,6 +383,15 @@ export function createWebServer(): http.Server {
   return server;
 }
 
+/**
+ * Start an HTTP server bound to 127.0.0.1 using the requested port.
+ *
+ * If the requested port is 0, the operating system will pick an available port.
+ *
+ * @param port - The preferred TCP port to listen on (use 0 for an ephemeral port)
+ * @returns An object with the actual `port` the server is listening on and the base `url` (e.g., `http://127.0.0.1:PORT`)
+ * @throws If the server emits an `error` while starting, the promise rejects with that error
+ */
 export async function startWebServer(port: number): Promise<{ port: number; url: string }> {
   const server = createWebServer();
   return new Promise((resolve, reject) => {

@@ -54,6 +54,15 @@ const DEFAULT_CONFIG: AppConfig = {
   promptPresets: DEFAULT_PRESETS,
 };
 
+/**
+ * Load the application configuration from disk, applying defaults, validation, and backward-compatibility fixes.
+ *
+ * The returned configuration is produced by merging persisted settings with built-in defaults, ensuring `renamePrompt`
+ * is a valid string, `promptPresets` is a non-empty, normalized array (generating missing `id`s and defaulting invalid
+ * names/prompts), and patching legacy `defaultModel`/`provider` values for compatibility.
+ *
+ * @returns The merged and normalized `AppConfig`. If the config file is missing or cannot be parsed, `DEFAULT_CONFIG` is returned.
+ */
 export function loadConfig(): AppConfig {
   if (!fs.existsSync(CONFIG_FILE)) {
     return DEFAULT_CONFIG;

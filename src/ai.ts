@@ -3,6 +3,13 @@ import { loadConfig } from './config.js';
 
 let openaiClient: OpenAI | null = null;
 
+/**
+ * Return a cached or newly initialized OpenAI client configured from the application config.
+ *
+ * @returns An initialized `OpenAI` client instance (cached between calls).
+ * @throws If `config.provider === 'openai'` and `config.openaiApiKey` is missing.
+ * @throws If `config.provider !== 'openai'` and `config.openrouterApiKey` is missing.
+ */
 export function getAIClient(): OpenAI {
   if (openaiClient) return openaiClient;
 
@@ -32,6 +39,15 @@ export function getAIClient(): OpenAI {
   return openaiClient;
 }
 
+/**
+ * Generate a filesystem-safe, descriptive filename-like slug for an image by sending the image and an instruction prompt to a vision chat model.
+ *
+ * Sends the image as a data URL along with an instruction prompt to the specified model, heuristically cleans the model's textual response, and converts it into a lowercase, dash-separated slug limited to 80 characters. If the model response is empty or considered too generic, returns the fallback `'descriptive-photo'`.
+ *
+ * @param promptOverride - Optional instruction text to send to the model; when omitted, the configured `renamePrompt` is used.
+ * @returns The sanitized filename-like slug derived from the model output, or `'descriptive-photo'` if no suitable name can be produced.
+ * @throws If the request fails after retrying for rate limits or if the underlying client throws an error.
+ */
 export async function askVisionModel(
   base64Image: string,
   mimeType: string,

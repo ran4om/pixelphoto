@@ -6,6 +6,16 @@ import fs from 'fs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const outDir = path.join(__dirname, '..', 'src', 'web');
 
+/**
+ * Generate PWA icon PNGs and write them to the project's web output directory.
+ *
+ * Ensures the output directory exists, renders two square icons (192×192 and 512×512)
+ * with a gradient background and centered "Px" label, and writes them as
+ * icon-192.png and icon-512.png into the configured output directory.
+ *
+ * On success logs the written filenames; on failure logs the error (and stack when available)
+ * and exits the process with code 1.
+ */
 async function main() {
   fs.mkdirSync(outDir, { recursive: true });
 
