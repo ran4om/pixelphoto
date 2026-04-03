@@ -1,10 +1,10 @@
 {
   "name": "pixelphoto",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "AI-powered CLI tool for automatically renaming images based on their visual content",
   "main": "dist/index.js",
   "bin": {
-    "pixelphoto": "./dist/index.js"
+    "pixelphoto": "dist/index.js"
   },
   "type": "module",
   "files": [
@@ -18,7 +18,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ran4om/pixelphoto.git"
+    "url": "git+https://github.com/ran4om/pixelphoto.git"
   },
   "homepage": "https://github.com/ran4om/pixelphoto#readme",
   "bugs": {
