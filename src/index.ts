@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { exec } from 'node:child_process';
 import { loadConfig, saveConfig } from './config.js';
 import { runQuickMode } from './core.js';
 import { runOnboard } from './onboard.js';
+import { startWebServer } from './web-server.js';
 
 const program = new Command();
 
@@ -17,6 +19,36 @@ program
   .description('Guided setup to auto-discover free Vision AI models and configure the app')
   .action(async () => {
     await runOnboard();
+  });
+
+program
+  .command('web')
+  .description('Start the local PixelPhoto PWA (settings, preview, batch rename)')
+  .option('-p, --port <port>', 'Port to listen on', '3847')
+  .option('--no-open', 'Do not open a browser tab')
+  .action(async (options) => {
+    const port = parseInt(String(options.port), 10);
+    if (Number.isNaN(port) || port < 1 || port > 65535) {
+      console.error(chalk.red('Invalid port.'));
+      process.exit(1);
+    }
+    const { url } = await startWebServer(port);
+    console.log(chalk.cyan.bold('\nPixelPhoto local studio'));
+    console.log(chalk.green(`  ${url}`));
+    console.log(chalk.gray('  Only connections from this machine are accepted. Press Ctrl+C to stop.\n'));
+    if (options.open !== false) {
+      const cmd =
+        process.platform === 'darwin'
+          ? `open "${url}"`
+          : process.platform === 'win32'
+            ? `start "" "${url}"`
+            : `xdg-open "${url}"`;
+      exec(cmd, err => {
+        if (err) {
+          console.log(chalk.yellow('Could not open a browser automatically; open the URL manually.'));
+        }
+      });
+    }
   });
 
 program
@@ -79,7 +111,19 @@ program
       console.log(chalk.yellow('🚧 TUI mode is coming soon. Falling back to --quick mode.'));
     }
     if (options.web) {
-      console.log(chalk.yellow('🚧 Web UI mode is coming soon. Falling back to --quick mode.'));
+      const port = 3847;
+      const { url } = await startWebServer(port);
+      console.log(chalk.cyan(`\nLocal studio: ${chalk.bold(url)}`));
+      console.log(chalk.gray('Configure prompts, models, and batch renames in the browser. Press Ctrl+C to stop the server.\n'));
+      const cmd =
+        process.platform === 'darwin'
+          ? `open "${url}"`
+          : process.platform === 'win32'
+            ? `start "" "${url}"`
+            : `xdg-open "${url}"`;
+      exec(cmd, () => {});
+      await new Promise(() => {});
+      return;
     }
 
     await runQuickMode(directory, options.model, options.resize === false, options.yes);
