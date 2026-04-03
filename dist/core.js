@@ -9,7 +9,7 @@ import { askVisionModel } from './ai.js';
 import { loadConfig } from './config.js';
 const VALID_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-export async function runQuickMode(directory, modelFlag, noResizeFlag) {
+export async function runQuickMode(directory, modelFlag, noResizeFlag, yesFlag) {
     const config = loadConfig();
     const modelToUse = modelFlag || config.defaultModel;
     const shouldResize = noResizeFlag ? false : config.resize;
@@ -77,6 +77,13 @@ export async function runQuickMode(directory, modelFlag, noResizeFlag) {
     renames.forEach(r => {
         console.log(`${chalk.gray(r.oldName)} -> ${chalk.green(r.newName)}`);
     });
+    if (yesFlag) {
+        for (const r of renames) {
+            fs.renameSync(r.oldPath, r.newPath);
+        }
+        console.log(chalk.green(`Successfully renamed ${renames.length} files!`));
+        return;
+    }
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout
