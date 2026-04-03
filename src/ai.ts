@@ -32,9 +32,15 @@ export function getAIClient(): OpenAI {
   return openaiClient;
 }
 
-export async function askVisionModel(base64Image: string, mimeType: string, model: string): Promise<string> {
+export async function askVisionModel(
+  base64Image: string,
+  mimeType: string,
+  model: string,
+  promptOverride?: string
+): Promise<string> {
   const client = getAIClient();
   const config = loadConfig();
+  const instructionText = (promptOverride ?? config.renamePrompt).trim();
 
   const requestBody: any = {
     model: model,
@@ -44,16 +50,7 @@ export async function askVisionModel(base64Image: string, mimeType: string, mode
         content: [
           {
             type: "text",
-            text: `You are an automated Photo Renamer. Given an image, your ONLY task is to return a descriptive filename.
-Rules:
-1. ONLY return the descriptive slug (e.g., white-cat-on-mat).
-2. NO conversational text, NO "The image shows...", NO "Filename:".
-3. NO markdown, NO extensions, NO spaces.
-4. Use lowercase, numbers, and dashes.
-5. Maximum 6 words.
-6. If the image is unclear, describe what IS visible rather than saying "unknown".
-
-Provide a short, descriptive filename for this image.`
+            text: instructionText
           },
           {
             type: "image_url",
